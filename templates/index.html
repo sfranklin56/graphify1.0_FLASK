@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Graphify™ - Data Visualization</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <style>
+        /* Global styles */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f4f4; /* Light background */
+            color: #333; /* Dark text for better readability */
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            margin: 0;
+            overflow-x: hidden;
+        }
+
+        .container {
+            background-color: #ffffff; /* White background for form */
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            width: 100%;
+            max-width: 600px;
+        }
+
+        .header {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .logo {
+            width: 50px;
+            height: auto;
+            margin-right: 10px;
+        }
+
+        h1 {
+            font-size: 24px;
+            color: #d32f2f; /* Red color for the title */
+            margin: 0;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        label {
+            font-weight: bold;
+        }
+
+        input[type="text"],
+        select,
+        input[type="file"],
+        input[type="range"] {
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #ddd; /* Light border */
+            font-size: 14px;
+            margin-bottom: 10px;
+            outline: none;
+            width: 100%;
+            background-color: #ffffff; /* White background for inputs */
+            color: #333; /* Dark text color */
+        }
+
+        button {
+            background-color: #d32f2f; /* Red button */
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #c62828; /* Darker red on hover */
+        }
+
+        .progress-container {
+            width: 100%;
+            background-color: #ddd;
+            border-radius: 8px;
+            margin-top: 15px;
+            display: none; /* Hidden initially */
+        }
+
+        .progress-bar {
+            height: 20px;
+            background-color: #d32f2f;
+            width: 0%;
+            border-radius: 8px;
+            transition: width 0.5s;
+        }
+
+        h2 {
+            margin-top: 20px;
+            text-align: center;
+            color: #d32f2f; /* Red color for headings */
+        }
+
+        video {
+            display: block;
+            margin: 10px auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            max-width: 100%;
+            width: auto;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <img src="{{ url_for('static', filename='logo.png') }}" alt="Logo" class="logo">
+            <h1>Graphify™</h1>
+        </div>
+        <form method="post" enctype="multipart/form-data" id="data-form">
+            <div>
+                <label for="plot_type">Select Plot Type:</label>
+                <select id="plot_type" name="plot_type" required onchange="updateLabelInputs()">
+                    <option value="line">Line Plot</option>
+                    <option value="bar">Bar Plot</option>
+                    <option value="pie">Pie Chart</option>
+                </select>
+            </div>
+            <div>
+                <label for="plot_title">Plot Title:</label>
+                <input type="text" id="plot_title" name="plot_title" placeholder="Enter title for the plot" required>
+            </div>
+            <div>
+                <label for="file">Upload Excel File:</label>
+                <input type="file" id="file" name="file" accept=".xlsx, .xls" required>
+            </div>
+            <div>
+                <label for="speed">Animation Speed:</label>
+                <input type="range" id="speed" name="speed" min="1" max="5" step="1" value="3">
+                <span id="speed_value">Average</span>
+            </div>
+            <div>
+                <label for="size">Select Animation Size:</label>
+                <select id="size" name="size" required>
+                    <option value="YouTube">YouTube (16:9)</option>
+                    <option value="Instagram">Instagram (1:1)</option>
+                    <option value="YouTube Shorts">YouTube Shorts (9:16)</option>
+                    <option value="Mobile">Mobile (9:16)</option>
+                    <option value="PC">PC (16:9)</option>
+                </select>
+            </div>
+            <div id="x_label_div">
+                <label for="x_label">X-Axis Label:</label>
+                <input type="text" id="x_label" name="x_label" placeholder="Enter label for X-axis">
+            </div>
+            <div id="y_label_div">
+                <label for="y_label">Y-Axis Label:</label>
+                <input type="text" id="y_label" name="y_label" placeholder="Enter label for Y-axis">
+            </div>
+            <div>
+                <label for="invert_colors">Invert Colors for Animation:</label>
+                <input type="checkbox" id="invert_colors" name="invert_colors">
+            </div>
+            <div>
+                <label for="video_quality">Select Video Quality:</label>
+                <select id="video_quality" name="video_quality" required>
+                    <option value="480p">480p (Lower Quality)</option>
+                    <option value="720p">720p (Standard Quality)</option>
+                    <option value="1080p">1080p (High Quality)</option>
+                    <option value="4k">4K (Ultra High Quality)</option>
+                </select>
+            </div>
+            <button type="submit">Generate Animation</button>
+        </form>
+
+        <div class="progress-container" id="progress-container">
+            <div class="progress-bar" id="progress-bar"></div>
+        </div>
+
+        {% if video_url %}
+            <h2>Generated Video:</h2>
+            <div class="video-container">
+                <video controls>
+                    <source src="{{ url_for('static', filename='animation.mp4') }}" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+            </div>
+        {% endif %}
+    </div>
+
+    <script>
+        const speedSlider = document.getElementById("speed");
+        const speedDisplay = document.getElementById("speed_value");
+        const progressContainer = document.getElementById("progress-container");
+        const progressBar = document.getElementById("progress-bar");
+        const form = document.getElementById("data-form");
+        const xLabelDiv = document.getElementById("x_label_div");
+        const yLabelDiv = document.getElementById("y_label_div");
+
+        speedSlider.addEventListener("input", function () {
+            const value = speedSlider.value;
+            let speedText = "";
+            switch (value) {
+                case "1":
+                    speedText = "Slowest";
+                    break;
+                case "2":
+                    speedText = "Slower";
+                    break;
+                case "3":
+                    speedText = "Average";
+                    break;
+                case "4":
+                    speedText = "Faster";
+                    break;
+                case "5":
+                    speedText = "Fastest";
+                    break;
+            }
+            speedDisplay.textContent = speedText;
+        });
+
+        function updateLabelInputs() {
+            const plotType = document.getElementById("plot_type").value;
+            if (plotType === "bar") {
+                xLabelDiv.style.display = "none";
+                yLabelDiv.style.display = "none";
+            } else {
+                xLabelDiv.style.display = "block";
+                yLabelDiv.style.display = "block";
+            }
+        }
+
+        form.addEventListener("submit", function(event) {
+            event.preventDefault(); // Stop form from submitting immediately
+            progressContainer.style.display = 'block';
+            progressBar.style.width = '0%'; // Reset progress bar
+
+            // Simulate progress
+            let progress = 0;
+            const interval = setInterval(() => {
+                if (progress >= 100) {
+                    clearInterval(interval);
+                } else {
+                    progress += 10; // Increment progress
+                    progressBar.style.width = progress + '%';
+                }
+            }, 500); // Update every 500 ms
+
+            this.submit(); // Submit the form after progress simulation
+        });
+
+        // Call function to set initial visibility based on default selection
+        updateLabelInputs();
+    </script>
+</body>
+</html>
