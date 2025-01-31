@@ -41,6 +41,10 @@ QUALITY_OPTIONS = {
     '4k': 240
 }
 
+# Ensure the upload folder exists
+if not os.path.exists(app.config['UPLOAD_FOLDER']):
+    os.makedirs(app.config['UPLOAD_FOLDER'])
+
 # Route for the homepage
 @app.route('/', methods=['GET', 'POST'])
 def index():
@@ -53,6 +57,7 @@ def index():
         if file.filename == '':
             return 'No selected file', 400
 
+        # Save the uploaded file
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], secure_filename(file.filename))
         file.save(file_path)
 
@@ -73,15 +78,21 @@ def index():
         x_label = request.form.get('x_label', 'X-axis') if plot_type in ['line', 'bar'] else ''
         y_label = request.form.get('y_label', 'Y-axis') if plot_type in ['line', 'bar'] else ''
 
-        df = pd.read_excel(file_path)
+        try:
+            df = pd.read_excel(file_path)
+        except Exception as e:
+            return f"Error reading the Excel file: {e}", 400
+
         date_col = 'Date'
         if date_col not in df.columns:
             return "Date column is missing in the data.", 400
 
-        df[date_col] = pd.to_datetime(df[date_col], format='%Y')
+        df[date_col] = pd.to_datetime(df[date_col], format='%Y', errors='coerce')
+        df = df.dropna(subset=[date_col])  # Drop rows where the Date column is invalid
         dates = df[date_col]
         dates_numeric = dates.astype(np.int64)
-        df = df.fillna(0)
+        df = df.fillna(0)  # Fill NaN values with 0
+
         data_columns = df.columns[df.columns != date_col]
 
         # Prepare interpolated data
@@ -137,24 +148,20 @@ def index():
                 labels = list(current_data.keys())
                 ax.pie(sizes, labels=labels, autopct='%1.1f%%', startangle=140)
 
-            ax.set_title(plot_title, color='black' if not invert_colors else 'white')
+            ax.legend()
+            plt.tight_layout()
 
-        # Generate animation with selected speed
+        # Set up the animation
         ani = FuncAnimation(fig, animate, frames=num_points, interval=animation_speed, repeat=False)
 
-        # Determine video quality configurations for rendering time
-        video_fps = QUALITY_OPTIONS.get(video_quality, 60)
-        output_path = os.path.join(app.config['STATIC_FOLDER'], 'animation.mp4')
-        ani.save(output_path, writer='ffmpeg', fps=video_fps)
+        # Save the animation as an MP4 file
+        video_file_path = os.path.join(app.config['STATIC_FOLDER'], 'output_video.mp4')
+        ani.save(video_file_path, writer='ffmpeg', dpi=QUALITY_OPTIONS.get(video_quality, 60))
 
-        return render_template('index.html', video_url=output_path)
+        return render_template('index.html', video_file='output_video.mp4')
 
-    return render_template('index.html')
-
-# Serve static files
-@app.route('/static/<filename>')
-def download_file(filename):
-    return send_from_directory(app.config['STATIC_FOLDER'], filename)
-
+# Run the app on the right port for deployment
 if __name__ == '__main__':
-    app.run(debug=True)
+    # Use the PORT from the environment variable or default to 5000 for local testing
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port)
